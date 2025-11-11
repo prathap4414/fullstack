@@ -1,0 +1,17 @@
+name : fullstack-demo
+services:
+  front : 
+    container_name : front-container
+    build : 
+      context : ./frontend
+      dockerfile : Dockerfile
+    image : front-image
+    ports : 
+      - "80:80"
+    networks :
+      - my-net
+  
+
+networks:
+  my-net:
+    
