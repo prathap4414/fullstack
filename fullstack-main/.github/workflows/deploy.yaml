@@ -1,0 +1,54 @@
+name: demo-DEPLOYMENT
+on:
+  push:
+    branches:
+      - main 
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v3
+      - name: create ssh key file
+        run: |
+          echo " ${{secrets.EC2_SSH_KEY}} " > newkeypair.pem
+          chmod 400 newkeypair.pem
+      - name: shh to frontend EC2 AND deploy frontend and then ssh to backend and deploy 
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.FRONTEND_EC2_IP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "=== connected to frontend EC2 ==="
+            echo "=== deploying frontend ==="
+            sudo -i
+            apt update -y
+            apt install -y git docker.io
+            systemctl start docker
+            systemctl enable docker
+            if [ -d "fullstack-path-based" ]; then
+              echo " repo llready exists, making changes inside it "
+              cd fullstack-path-based
+              OLD_COMMIT = $(git rev-parse HEAD)
+              git pull origin main
+              NEW_COMMIT = $(git rev-parse HEAD)
+            else 
+              echo " clonning repo as it does not exist "
+              git clone https://github.com/prathap4414/fullstack-path-based.git
+              cd fullstack-path-based
+            fi
+            if [ "$OLD_COMMIT" != "$NEW_COMMIT" ]; then
+              echo "changes in repo detected , building new docker image"
+              cd frontend
+              docker stop frontend-cont || true
+              docker rm frontend-cont || true
+              docker image rm frontend-image || true
+              docker build -t frontend-image .
+              docker run -d -p 80:80 --name frontend-cont frontend-image
+            else
+              echo " no changes in repo , skipping docker build "
+            fi
+            
+
+            
