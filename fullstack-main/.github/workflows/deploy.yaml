@@ -13,7 +13,7 @@ jobs:
         run: |
           echo " ${{secrets.EC2_SSH_KEY}} " > newkeypair.pem
           chmod 400 newkeypair.pem
-      - name: shh to frontend EC2 AND deploy frontend and then ssh to backend and deploy 
+      - name: shh to frontend EC2 AND deploy frontgfhgend and then ssh to backend and deploy 
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.FRONTEND_EC2_IP }}
