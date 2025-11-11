@@ -1,0 +1,94 @@
+name: CI/CD - Frontend & Backend EC2 Deploy
+
+on:
+  push:
+    branches:
+      - main  # Trigger workflow when code is pushed to main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+
+
+
+    
+
+    steps:
+      # =========================================================
+      # Step 1: Checkout repository code
+      # =========================================================
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # =========================================================
+      # Step 2: Create SSH key file (same for both EC2s)
+      # =========================================================
+      - name: Create SSH key file
+        run: |
+          echo "${{ secrets.EC2_SSH_KEY }}" > newkeypair.pem
+          chmod 400 newkeypair.pem
+
+      # =========================================================
+      # Step 3: SSH into Frontend EC2 and deploy frontend + backend
+      # =========================================================
+      - name: Deploy Frontend and Backend
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.FRONTEND_EC2_IP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "=== Connected to Frontend EC2 ==="
+
+            # -----------------------------------------------------
+            # FRONTEND DEPLOYMENT
+            # -----------------------------------------------------
+            echo "=== Deploying Frontend ==="
+            sudo apt update -y
+            sudo apt install -y git docker.io
+            sudo systemctl start docker
+            sudo systemctl enable docker
+
+            rm -rf fullstack-path-based
+            git clone https://github.com/prathap4414/fullstack-path-based.git
+            cd fullstack-path-based/frontend
+
+            sudo docker stop frontend-container || true
+            sudo docker rm frontend-container || true
+
+            sudo docker rm frontend-image || true
+
+            sudo docker build -t frontend-image -f ./Dockerfile.prod .
+            sudo docker run -d -p 80:80 --name frontend-container frontend-image
+            echo "✅ Frontend deployed successfully"
+
+            # -----------------------------------------------------
+            # BACKEND DEPLOYMENT (SSH into Private EC2)
+            # -----------------------------------------------------
+            echo "=== Deploying Backend on Private EC2 ==="
+            echo "${{ secrets.EC2_SSH_KEY }}" > newkeypair.pem
+            chmod 400 newkeypair.pem
+
+            ssh -o StrictHostKeyChecking=no -i newkeypair.pem ubuntu@${{ secrets.PRIVATE_EC2_IP }} << 'ENDSSH'
+              echo "=== Connected to Private EC2 ==="
+              sudo apt update -y
+              sudo apt install -y git docker.io
+              sudo systemctl start docker
+              sudo systemctl enable docker
+
+              rm -rf fullstack-path-based
+              git clone https://github.com/prathap4414/fullstack-path-based.git
+              cd fullstack-path-based/backend
+
+              sudo docker stop backend-container || true
+              sudo docker rm backend-container || true
+              sudo docker rm backend-image || true
+
+              sudo docker build -t backend-image .
+              sudo docker run -d -p 5000:5000 --name backend-container backend-image
+              echo "✅ Backend deployed successfully"
+            ENDSSH
+
+
+
