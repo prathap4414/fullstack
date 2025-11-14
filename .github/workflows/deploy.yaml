@@ -33,7 +33,6 @@ jobs:
       - name: SSH → Pull repo / detect changes
         id: pull_frontend
         uses: appleboy/ssh-action@v0.1.10
-        output: true
         with:
           host: ${{ secrets.FRONTEND_EC2_IP }}
           username: ubuntu
