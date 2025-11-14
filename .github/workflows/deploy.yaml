@@ -11,7 +11,7 @@ jobs:
         uses: actions/checkout@v3
       - name: create ssh key file
         run: |
-          exho " ${{secrets.EC2_SSH_KEY}} " > newkeypair.pem
+          echo " ${{secrets.EC2_SSH_KEY}} " > newkeypair.pem
           chmod 400 newkeypair.pem
       - name: shh to frontend EC2 AND deploy frontend and then ssh to backend and deploy 
         uses: appleboy/ssh-action@v0.1.10
