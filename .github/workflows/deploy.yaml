@@ -1,5 +1,6 @@
 name: demo-DEPLOYMENT
 on:
+  worflow_dispatch:
   push:
     branches:
       - main 
