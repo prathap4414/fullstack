@@ -1,55 +1,80 @@
 name: demo-DEPLOYMENT
+
 on:
   workflow_dispatch:
   push:
     branches:
-      - main 
+      - main
+
 jobs:
-  deploy:
+
+  frontend:
+    name: Deploy Frontend
     runs-on: ubuntu-latest
+
     steps:
-      - name: checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v3
-      - name: create ssh key file
-        run: |
-          echo " ${{secrets.EC2_SSH_KEY}} " > newkeypair.pem
-          chmod 400 newkeypair.pem
-      - name: shh to frontend EC2 AND deploy frontend and then ssh to backend and deploy 
+
+      - name: SSH → Install required packages on frontend EC2
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.FRONTEND_EC2_IP }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "=== connected to frontend EC2 ==="
-            echo "=== deploying frontend ==="
-            sudo -i
-            apt update -y
-            apt install -y git docker.io
-            systemctl start docker
-            systemctl enable docker
-            if [ -d "fullstack-path-based" ]; then
-              echo " repo llready exists, making changes inside it "
-              cd fullstack-path-based
-              OLD_COMMIT = $(git rev-parse HEAD)
+            echo "=== FRONTEND: Installing dependencies ==="
+            sudo apt update -y
+            sudo apt install -y git docker.io
+            sudo systemctl enable docker
+            sudo systemctl start docker
+
+      - name: SSH → Pull repo / detect changes
+        id: pull_frontend
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.FRONTEND_EC2_IP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "=== FRONTEND: Checking repository ==="
+
+            if [ -d "fullstack" ]; then
+              echo "Repo already exists, pulling latest changes"
+              cd fullstack
+              OLD_COMMIT=$(git rev-parse HEAD)
               git pull origin main
-              NEW_COMMIT = $(git rev-parse HEAD)
-            else 
-              echo " clonning repo as it does not exist "
+              NEW_COMMIT=$(git rev-parse HEAD)
+            else
+              echo "Cloning repo"
               git clone https://github.com/prathap4414/fullstack.git
               cd fullstack
+              OLD_COMMIT="none"
+              NEW_COMMIT="new"
             fi
-            if [ "$OLD_COMMIT" != "$NEW_COMMIT" ]; then
-              echo "changes in repo detected , building new docker image"
-              cd frontend
-              docker stop frontend-cont || true
-              docker rm frontend-cont || true
-              docker image rm frontend-image || true
-              docker build -t frontend-image .
-              docker run -d -p 80:80 --name frontend-cont frontend-image
-            else
-              echo " no changes in repo , skipping docker build "
-            fi
-            
 
-            
+            echo "old=$OLD_COMMIT" >> $GITHUB_ENV
+            echo "new=$NEW_COMMIT" >> $GITHUB_ENV
+
+      - name: SSH → Build & run frontend docker container (only if changed)
+        if: env.old != env.new
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.FRONTEND_EC2_IP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "=== FRONTEND: Changes detected → Deploying ==="
+            cd fullstack/frontend
+
+            sudo docker stop frontend-cont || true
+            sudo docker rm frontend-cont || true
+            sudo docker image rm frontend-image || true
+
+            sudo docker build -t frontend-image .
+            sudo docker run -d -p 80:80 --name frontend-cont frontend-image
+
+      - name: No changes → Skip frontend deploy
+        if: env.old == env.new
+        run: echo "No changes in frontend repo. Skipping docker rebuild."
+
