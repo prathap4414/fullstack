@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -32,6 +33,7 @@ jobs:
       - name: SSH → Pull repo / detect changes
         id: pull_frontend
         uses: appleboy/ssh-action@v0.1.10
+        output: true
         with:
           host: ${{ secrets.FRONTEND_EC2_IP }}
           username: ubuntu
@@ -53,11 +55,11 @@ jobs:
               NEW_COMMIT="new"
             fi
 
-            echo "old=$OLD_COMMIT" >> $GITHUB_ENV
-            echo "new=$NEW_COMMIT" >> $GITHUB_ENV
+            echo "OLD_COMMIT=$OLD_COMMIT"
+            echo "NEW_COMMIT=$NEW_COMMIT"
 
       - name: SSH → Build & run frontend docker container (only if changed)
-        if: env.old != env.new
+        if: steps.pull_frontend.outputs.OLD_COMMIT != steps.pull_frontend.outputs.NEW_COMMIT
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.FRONTEND_EC2_IP }}
@@ -75,6 +77,5 @@ jobs:
             sudo docker run -d -p 80:80 --name frontend-cont frontend-image
 
       - name: No changes → Skip frontend deploy
-        if: env.old == env.new
+        if: steps.pull_frontend.outputs.OLD_COMMIT == steps.pull_frontend.outputs.NEW_COMMIT
         run: echo "No changes in frontend repo. Skipping docker rebuild."
-
