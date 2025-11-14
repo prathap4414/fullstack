@@ -1,6 +1,6 @@
 name: demo-DEPLOYMENT
 on:
-  worflow_dispatch:
+  workflow_dispatch:
   push:
     branches:
       - main 
