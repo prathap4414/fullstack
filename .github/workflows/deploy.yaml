@@ -36,8 +36,8 @@ jobs:
               NEW_COMMIT = $(git rev-parse HEAD)
             else 
               echo " clonning repo as it does not exist "
-              git clone https://github.com/prathap4414/fullstack-path-based.git
-              cd fullstack-path-based
+              git clone https://github.com/prathap4414/fullstack.git
+              cd fullstack
             fi
             if [ "$OLD_COMMIT" != "$NEW_COMMIT" ]; then
               echo "changes in repo detected , building new docker image"
