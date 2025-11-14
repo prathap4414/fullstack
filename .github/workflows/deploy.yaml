@@ -9,7 +9,7 @@ on:
 jobs:
 
   frontend:
-    name: Deploy Frontend
+    name: Deploy Frontend (Always Fresh)
     runs-on: ubuntu-latest
 
     steps:
@@ -30,51 +30,34 @@ jobs:
             sudo systemctl enable docker
             sudo systemctl start docker
 
-      - name: SSH → Pull repo / detect changes
-        id: pull_frontend
+      - name: SSH → Delete old repo and clone fresh
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.FRONTEND_EC2_IP }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "=== FRONTEND: Checking repository ==="
+            echo "=== FRONTEND: Removing old repo ==="
+            sudo rm -rf fullstack
 
-            if [ -d "fullstack" ]; then
-              echo "Repo already exists, pulling latest changes"
-              cd fullstack
-              OLD_COMMIT=$(git rev-parse HEAD)
-              git pull origin main
-              NEW_COMMIT=$(git rev-parse HEAD)
-            else
-              echo "Cloning repo"
-              git clone https://github.com/prathap4414/fullstack.git
-              cd fullstack
-              OLD_COMMIT="none"
-              NEW_COMMIT="new"
-            fi
+            echo "=== FRONTEND: Cloning fresh repo ==="
+            git clone https://github.com/prathap4414/fullstack.git
 
-            echo "OLD_COMMIT=$OLD_COMMIT"
-            echo "NEW_COMMIT=$NEW_COMMIT"
-
-      - name: SSH → Build & run frontend docker container (only if changed)
-        if: steps.pull_frontend.outputs.OLD_COMMIT != steps.pull_frontend.outputs.NEW_COMMIT
+      - name: SSH → Delete old docker container & image and rebuild fresh
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.FRONTEND_EC2_IP }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "=== FRONTEND: Changes detected → Deploying ==="
-            cd fullstack/frontend
-
+            echo "=== FRONTEND: Cleaning old Docker container ==="
             sudo docker stop frontend-cont || true
             sudo docker rm frontend-cont || true
             sudo docker image rm frontend-image || true
 
+            echo "=== FRONTEND: Building new Docker image ==="
+            cd fullstack/frontend
             sudo docker build -t frontend-image .
-            sudo docker run -d -p 80:80 --name frontend-cont frontend-image
 
-      - name: No changes → Skip frontend deploy
-        if: steps.pull_frontend.outputs.OLD_COMMIT == steps.pull_frontend.outputs.NEW_COMMIT
-        run: echo "No changes in frontend repo. Skipping docker rebuild."
+            echo "=== FRONTEND: Running new container ==="
+            sudo docker run -d -p 80:80 --name frontend-cont frontend-image
